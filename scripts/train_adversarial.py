@@ -1,30 +1,27 @@
 """
 Adversarial training for prompt injection attack and defense.
 
-Two agents trained in alternating phases:
-- Agent M (Malicious): Learns to inject prompts into messages
-- Agent D (Defense): Learns to detect injected messages
-
-Uses local vLLM instances for all inference (no external APIs).
-Default model: Qwen/Qwen2.5-7B-Instruct
+Two agents trained via GRPO:
+- M (attacker): injects into messages to leak secrets
+- D (detector): classifies messages as clean/injected
 
 Architecture:
-- vLLM Instance 1 (port 8000): Serves M and D (trained agents, LoRA enabled)
-- vLLM Instance 2 (port 8001): Serves Alice and Bob simulation (static weights)
+- vLLM Instance 1 (port 8000): M and D (trained, weight sync enabled)
+- vLLM Instance 2 (port 8001): Alice and Bob simulation (static)
 
 Setup:
-    # Terminal 1: Agents
-    python -m vllm.entrypoints.openai.api_server \\
+    # Terminal 1: Agents (ludic vLLM server with weight sync)
+    python -m ludic.inference.vllm_server \\
         --model Qwen/Qwen2.5-7B-Instruct --port 8000 \\
-        --enable-lora --max-lora-rank 16 --gpu-memory-utilization 0.45
+        --enable-lora --gpu-memory-utilization 0.45
 
     # Terminal 2: Simulators
-    python -m vllm.entrypoints.openai.api_server \\
+    python -m ludic.inference.vllm_server \\
         --model Qwen/Qwen2.5-7B-Instruct --port 8001 \\
         --gpu-memory-utilization 0.45
 
     # Terminal 3: Training
-    python examples/prompt_injection/train_adversarial.py --difficulty easy
+    python scripts/train_adversarial.py
 """
 
 from __future__ import annotations
