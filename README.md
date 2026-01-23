@@ -4,7 +4,7 @@ Adversarial training for prompt injection attack and defense.
 
 ## What is this?
 
-LLM agents with tool access (file reads, API calls, code execution) are vulnerable to prompt injection—malicious instructions hidden in user inputs that hijack the agent's behavior. PIGAN trains two models in a GAN-like setup:
+LLMs are vulnerable to prompt injection—malicious instructions hidden in user inputs that hijack the agent's behavior. PIGAN trains two models in a GAN-like setup:
 
 - **M (attacker)**: learns to craft injections that evade detection and trick the agent into leaking secrets
 - **D (detector)**: learns to distinguish clean messages from injected ones
