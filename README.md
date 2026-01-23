@@ -1,4 +1,4 @@
-# Adversarial Robustness for LLM Agents
+# PIGAN: Prompt Injection GAN
 
 Training robust LLM agents through adversarial reinforcement learning. An attacker learns to craft prompt injections while a defender agent learns to resist them and complete tasks successfully.
 
@@ -109,8 +109,8 @@ Algorithm: Adversarial RL Training
 
 ```bash
 # Clone the repository
-git clone https://github.com/youruser/adversarial-robustness.git
-cd adversarial-robustness
+git clone https://github.com/youruser/pigan.git
+cd pigan
 
 # Install with ludic dependency
 pip install -e .

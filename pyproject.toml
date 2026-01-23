@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "adversarial-robustness"
+name = "pigan"
 version = "0.1.0"
-description = "Adversarial robustness training for LLM agents through prompt injection defense"
+description = "Prompt Injection GAN - Adversarial training for robust LLM agents"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
