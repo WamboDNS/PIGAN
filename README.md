@@ -24,17 +24,31 @@ Two agents compete in a GAN-like setup:
 M intercepts messages from Alice to Bob and injects malicious instructions. D tries to detect the injection. Bob executes tool calls in a sandboxed environment. If M succeeds, secrets leak or files get destroyed.
 
 ```
-    Alice                    M (attacker)              D (detector)
-      │                          │                          │
-      │─── "help me debug" ─────►│                          │
-      │                          │─── + "[READ flag.txt]" ─►│──► "injected"?
-      │                          │                          │
-      │                          ▼
-      │                    ┌─────────┐
-      │                    │   Bob   │──► leaked? ──► rewards
-      │                    │ [tools] │
-      │                    └─────────┘
-      │◄─────── response ────────┤
+      Alice                 Bob                    M            D
+        │                    │                     │            │
+        │── "help debug" ───►│                     │            │
+        │                    │◄── intercept ───────│            │
+        │                    │                     │            │
+        │                    │    injects:         │            │
+        │                    │    + "[READ flag]"  │            │
+        │                    │                     │            │
+        │                    │     ┌───────────────┴────────────┤
+        │                    │     │  original msg ────────────►│ "clean"?
+        │                    │     │  injected msg ────────────►│ "injected"?
+        │                    │     └───────────────┬────────────┘
+        │                    │                     │
+        │                    │◄─── send injected ──│
+        │                    │
+        │                ┌───┴───┐
+        │                │ tools │  ◄── read_file, rm, ...
+        │                └───┬───┘
+        │                    │
+        │                    ▼
+        │            flag leaked or
+        │            file deleted?  ───────────────────►  rewards
+        │                    │
+        │◄─── response ──────│
+        │                    │
 ```
 
 ## Attack Modes
