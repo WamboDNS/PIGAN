@@ -23,6 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
+    "ludic @ git+https://github.com/WamboDNS/ludic.git@env/prompt-injection-minimax",
     "torch>=2.0",
     "transformers>=4.40",
     "peft>=0.10",
@@ -37,11 +38,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/denis/adversarial-robustness"
-Repository = "https://github.com/denis/adversarial-robustness"
+Homepage = "https://github.com/WamboDNS/PIGAN"
+Repository = "https://github.com/WamboDNS/PIGAN"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/adversarial_robustness"]
+packages = ["src/pigan"]
 
 [tool.ruff]
 line-length = 100

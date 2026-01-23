@@ -41,7 +41,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import get_peft_model, LoraConfig, TaskType
 from huggingface_hub import HfApi, create_repo
 
-from adversarial_robustness.envs import (
+from pigan.envs import (
     PromptInjectionEnv,
     SandboxConfig,
     SandboxWrapper,

@@ -37,7 +37,7 @@ import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from adversarial_robustness.envs import (
+from pigan.envs import (
     PromptInjectionEnv,
     SandboxConfig,
     MockSandboxWrapper,
