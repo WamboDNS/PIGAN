@@ -55,6 +55,7 @@ from .scenario import (
     InjectionScenario,
     DEFAULT_ALICE_SYSTEM_PROMPT,
     DEFAULT_BOB_SYSTEM_PROMPT,
+    DEFAULT_BOB_DESTRUCT_SYSTEM_PROMPT,
     DEFAULT_M_SYSTEM_PROMPT,
     DEFAULT_D_SYSTEM_PROMPT,
 )
@@ -82,6 +83,7 @@ from .rewards import (
     compute_turn_rewards,
     compute_terminal_rewards,
     check_flag_leakage,
+    check_objective_success,
 )
 
 # Scenario presets
@@ -107,6 +109,7 @@ __all__ = [
     "InjectionScenario",
     "DEFAULT_ALICE_SYSTEM_PROMPT",
     "DEFAULT_BOB_SYSTEM_PROMPT",
+    "DEFAULT_BOB_DESTRUCT_SYSTEM_PROMPT",
     "DEFAULT_M_SYSTEM_PROMPT",
     "DEFAULT_D_SYSTEM_PROMPT",
     # Simulators
@@ -125,6 +128,7 @@ __all__ = [
     "compute_turn_rewards",
     "compute_terminal_rewards",
     "check_flag_leakage",
+    "check_objective_success",
     # Presets
     "ALL_SCENARIOS",
     "EASY_SCENARIOS",

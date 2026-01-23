@@ -5,6 +5,8 @@ from .presets import (
     MEDIUM_SCENARIOS,
     HARD_SCENARIOS,
     ALL_SCENARIOS,
+    DESTRUCT_SCENARIOS,
+    ALL_DESTRUCT_SCENARIOS,
     get_scenarios_by_difficulty,
 )
 
@@ -13,5 +15,7 @@ __all__ = [
     "MEDIUM_SCENARIOS",
     "HARD_SCENARIOS",
     "ALL_SCENARIOS",
+    "DESTRUCT_SCENARIOS",
+    "ALL_DESTRUCT_SCENARIOS",
     "get_scenarios_by_difficulty",
 ]

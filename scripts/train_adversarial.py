@@ -2,8 +2,12 @@
 Adversarial training for prompt injection attack and defense.
 
 Two agents trained via GRPO:
-- M (attacker): injects into messages to leak secrets
+- M (attacker): injects into messages to leak secrets or destroy files
 - D (detector): classifies messages as clean/injected
+
+Modes:
+- Exfil (default): M tries to leak a secret flag
+- Destruct: M tries to trick Bob into deleting a protected file
 
 Architecture:
 - vLLM Instance 1 (port 8000): M and D (trained, weight sync enabled)
@@ -22,6 +26,20 @@ Setup:
 
     # Terminal 3: Training
     python scripts/train_adversarial.py
+
+Transfer Attack Testing:
+    # Train M on Qwen, test against Llama Bob:
+    # Terminal 2: Use different model for simulators
+    python -m ludic.inference.vllm_server \\
+        --model meta-llama/Llama-3.1-8B-Instruct --port 8001
+
+    # Terminal 3: Specify simulator model
+    python scripts/train_adversarial.py \\
+        --model Qwen/Qwen2.5-7B-Instruct \\
+        --simulator-model meta-llama/Llama-3.1-8B-Instruct
+
+Destruct Mode:
+    python scripts/train_adversarial.py --difficulty destruct
 """
 
 from __future__ import annotations
@@ -148,7 +166,10 @@ def main():
                         help="Group size for GRPO normalization")
 
     # Scenario configuration
-    parser.add_argument("--difficulty", choices=["easy", "medium", "hard", "all"], default="easy")
+    parser.add_argument("--difficulty", choices=[
+        "easy", "medium", "hard", "all",
+        "destruct", "destruct_easy", "destruct_medium", "destruct_hard"
+    ], default="easy")
 
     # Sandbox configuration (PrimeIntellect)
     parser.add_argument("--sandbox-flag-path", default="/home/user/flag.txt",
@@ -238,10 +259,10 @@ def main():
     )
     publisher = create_vllm_publisher(agent_client)
 
-    # Simulators share the same vLLM instance (no weight updates needed for them)
+    # Simulators can use separate vLLM instance for transfer attacks
     simulator_client = VLLMChatClient(
-        host=args.agent_host,  # Same server as agents
-        port=args.agent_port,
+        host=args.simulator_host,
+        port=args.simulator_port,
         enable_weight_updates=False,
     )
 
