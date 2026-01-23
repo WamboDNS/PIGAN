@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import os
+import sys
 from functools import partial
 from pathlib import Path
 from typing import List, Optional
@@ -45,7 +46,7 @@ from pigan.envs import (
     MockSandboxWrapper,
     create_sandbox,
     get_scenarios_by_difficulty,
-    RewardConfig,
+    GANRewardConfig,
     AliceSimulator,
     BobSimulator,
     SimulatorConfig,

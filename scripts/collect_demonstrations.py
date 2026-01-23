@@ -42,7 +42,7 @@ from pigan.envs import (
     SandboxConfig,
     MockSandboxWrapper,
     get_scenarios_by_difficulty,
-    RewardConfig,
+    GANRewardConfig,
     AliceSimulator,
     BobSimulator,
     SimulatorConfig,
@@ -408,7 +408,7 @@ Look for:
             bob=bob,
             sandbox=sandbox,
             scenarios=get_scenarios_by_difficulty(difficulty),
-            reward_config=RewardConfig(),
+            reward_config=GANRewardConfig(),
             max_turns=10,
         )
 

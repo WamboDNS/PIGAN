@@ -5,7 +5,7 @@ A multi-agent environment for training prompt injection attack (M) and defense (
 using PrimeIntellect Sandboxes for flag-based success detection.
 
 Example usage:
-    from adversarial_robustness.envs import (
+    from pigan.envs import (
         PromptInjectionEnv,
         SandboxWrapper,
         SandboxConfig,
@@ -14,7 +14,7 @@ Example usage:
         SimulatorConfig,
         create_simulators,
         get_scenarios_by_difficulty,
-        RewardConfig,
+        GANRewardConfig,
     )
 
     # Setup sandbox
@@ -67,23 +67,21 @@ from .simulation import (
     create_simulators,
 )
 
-# Detection utilities
+# Detection utilities (XML parsing for agent outputs)
 from .detection import (
-    check_flag_leakage,
     extract_xml_tag,
     parse_d_classification,
-    parse_m_output,
     parse_m_injection,
 )
 
-# Rewards (sparse terminal)
+# Rewards
 from .rewards import (
-    RewardConfig,
-    StepRewards,
-    EpisodeOutcome,
-    EpisodeSummary,
-    compute_step_rewards,
-    check_information_leak,
+    GANRewardConfig,
+    TurnRewards,
+    TerminalRewards,
+    compute_turn_rewards,
+    compute_terminal_rewards,
+    check_flag_leakage,
 )
 
 # Scenario presets
@@ -117,18 +115,16 @@ __all__ = [
     "SimulatorConfig",
     "create_simulators",
     # Detection
-    "check_flag_leakage",
     "extract_xml_tag",
     "parse_d_classification",
-    "parse_m_output",
     "parse_m_injection",
-    # Rewards (sparse terminal)
-    "RewardConfig",
-    "StepRewards",
-    "EpisodeOutcome",
-    "EpisodeSummary",
-    "compute_step_rewards",
-    "check_information_leak",
+    # Rewards
+    "GANRewardConfig",
+    "TurnRewards",
+    "TerminalRewards",
+    "compute_turn_rewards",
+    "compute_terminal_rewards",
+    "check_flag_leakage",
     # Presets
     "ALL_SCENARIOS",
     "EASY_SCENARIOS",
