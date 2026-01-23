@@ -31,12 +31,21 @@ Two layers:
       │                          ▼
       │                        Bob ──► leak? ──► rewards
       │                          │
-      │◄─────── response ────────┘
-      │
+      │◄── response (clean) ─────┤
+      │                          │◄── response (sees injected context)
+      │                          │
       │─── next message ────────►│  ... (repeat for max_turns)
 ```
 
-Each episode runs for multiple turns. D sees both the original and injected message each turn. Bob only sees the injected version and responds. If Bob leaks the secret flag at any point, M wins.
+Each episode runs for multiple turns.
+
+**Who sees what:**
+- **Alice**: only sees the benign conversation (her messages + Bob's responses)
+- **M**: sees the conversation with injections (can learn what worked)
+- **D**: sees both original and injected message each turn
+- **Bob**: only sees the injected version
+
+If Bob leaks the secret flag at any point, M wins.
 
 ### Sandboxing
 
