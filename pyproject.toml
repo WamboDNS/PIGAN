@@ -9,9 +9,6 @@ description = "Prompt Injection GAN - Adversarial training for robust LLM agents
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-authors = [
-    { name = "Denis Wambold", email = "deniswambold@gmail.com" },
-]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
