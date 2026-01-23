@@ -1,14 +1,6 @@
-```
-    ██████╗ ██╗ ██████╗  █████╗ ███╗   ██╗
-    ██╔══██╗██║██╔════╝ ██╔══██╗████╗  ██║
-    ██████╔╝██║██║  ███╗███████║██╔██╗ ██║
-    ██╔═══╝ ██║██║   ██║██╔══██║██║╚██╗██║
-    ██║     ██║╚██████╔╝██║  ██║██║ ╚████║
-    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
-    Prompt Injection Generative Adversarial Network
-```
+# PiGAN - train LLMs to defend by learning to attack
 
-Adversarial training for LLM prompt injection attack and defense.
+An attacker model (M) and detector model (D) compete in a GAN-like setup. M learns to craft increasingly sophisticated injections. D learns to catch them. As M finds new attack patterns, D adapts—and vice versa. The result: a detector that generalizes to unseen attacks, hardened through adversarial pressure rather than static datasets.
 
 ---
 
@@ -89,7 +81,7 @@ python scripts/train_adversarial.py \
 ## Setup
 
 ```bash
-pip install -e .
+uv sync
 ```
 
 ### Quick Start (Mock Sandbox)
