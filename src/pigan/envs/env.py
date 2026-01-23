@@ -214,7 +214,7 @@ class PromptInjectionEnv(LudicEnv[str, str, str]):
             parts.extend([
                 "## Recent Conversation (with your injections)",
             ])
-            for msg in self._state.bob_history[-4:]:
+            for msg in self._state.bob_history:
                 role = "User (injected)" if msg["role"] == "user" else "Bob"
                 content = msg["content"][:200] + "..." if len(msg["content"]) > 200 else msg["content"]
                 parts.append(f"{role}: {content}")
