@@ -1,25 +1,36 @@
 # PIGAN: Prompt Injection GAN
 
-Training robust LLM agents through adversarial reinforcement learning. An attacker learns to craft prompt injections while a defender agent learns to resist them and complete tasks successfully.
+GAN-style adversarial training for prompt injection attack and defense in LLM agents.
 
 ## Problem Setting
 
 Modern LLM-based agents interact with external tools, APIs, and user data—creating attack surfaces for **prompt injection**. An adversary can embed malicious instructions in seemingly benign inputs, attempting to hijack the agent's behavior and leak sensitive information.
 
-We formulate this as a two-player game:
+### Two-Layer Architecture
 
-- **Attacker (M)**: Generates prompt injections to manipulate the agent
-- **Agent (D)**: Executes tasks while resisting injection attacks and protecting user data
+The environment has two layers:
 
-### Environment Dynamics
+**Layer 1: Benign Conversation (Simulated)**
+- **Alice**: User who sends benign messages
+- **Bob**: Assistant with tool access (file read, etc.) that may contain sensitive data
 
-Each episode consists of multiple steps:
-1. The attacker observes the current state and generates a prompt injection
-2. The agent receives the (potentially) injected input along with user context
-3. The agent selects an action (tool call, response, etc.)
-4. The environment transitions to the next state
+**Layer 2: Adversarial Game (Trained)**
+- **M (Attacker)**: Intercepts Alice's messages and injects malicious instructions into EVERY message
+- **D (Detector)**: Classifies messages as "clean" or "injected"
 
-This continues until the episode terminates (task completion, information leak, or truncation).
+### Turn Flow
+
+```
+1. Alice sends a benign message
+2. M ALWAYS injects into Alice's message (creates manipulated version)
+3. D classifies the ORIGINAL message (ground truth: clean)
+4. D classifies the INJECTED message (ground truth: injected)
+5. Bob receives M's injected version and responds
+6. Check if Bob leaked the secret flag → injection success
+7. Compute rewards, continue or terminate
+```
+
+D's task is purely classification—it sees both versions and must distinguish them. Bob (simulated) is the vulnerable agent that might leak information if M's injection is effective.
 
 ### Reward Structure
 
@@ -48,10 +59,10 @@ This structure encourages:
 
 ### Zero-Sum Adversarial Dynamics
 
-Throughout training, the attacker and agent are **simultaneously optimized** to maximize their respective rewards:
-- The attacker learns increasingly sophisticated injection techniques
-- The agent learns to detect and resist manipulations while completing tasks
-- This co-evolution produces robust agents that generalize to unseen attacks
+Throughout training, M and D are **simultaneously optimized** in a minimax game:
+- **M** learns increasingly sophisticated injection techniques that evade detection
+- **D** learns to distinguish clean messages from injected ones
+- This co-evolution produces robust detectors that generalize to unseen attack patterns
 
 ## Training Pipeline
 
