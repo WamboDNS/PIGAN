@@ -12,7 +12,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-dependencies = []
+dependencies = [
+    "verifiers>=0.1.9.post3",
+]
 
 [project.optional-dependencies]
 dev = [
