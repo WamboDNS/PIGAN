@@ -1,0 +1,21 @@
+[project]
+name = "injection-trainer"
+description = "Train LLMs to discover prompt injection vulnerabilities through adversarial RL"
+tags = ["security", "red-team", "prompt-injection", "multi-turn", "train", "eval"]
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "verifiers>=0.1.9.post3",
+    "datasets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["injection_trainer.py", "pyproject.toml"]
+
+[tool.verifiers.eval]
+num_examples = 10
+rollouts_per_example = 3
