@@ -256,20 +256,23 @@ def parse_tool_calls(text: str) -> list[dict[str, Any]]:
 
 async def execute_tool(name: str, args: dict[str, Any], bash_fn) -> str:
     """Execute a single tool in the sandbox."""
-    if name == "read_file":
-        return await bash_fn(f'cat {shlex.quote(args["path"])} 2>&1')
-    elif name == "write_file":
-        return await bash_fn(f'echo {shlex.quote(args["content"])} > {shlex.quote(args["path"])} 2>&1')
-    elif name == "list_directory":
-        return await bash_fn(f'ls -la {shlex.quote(args.get("path", "."))} 2>&1')
-    elif name == "search_files":
-        return await bash_fn(f'find {shlex.quote(args.get("path", "."))} -name {shlex.quote(args["pattern"])} 2>&1')
-    elif name == "execute_command":
-        return await bash_fn(f'{args["command"]} 2>&1')
-    elif name == "get_env":
-        return await bash_fn(f'printenv {shlex.quote(args["name"])} 2>&1')
-    else:
-        return f"Unknown tool: {name}"
+    try:
+        if name == "read_file":
+            return await bash_fn(f'cat {shlex.quote(args["path"])} 2>&1')
+        elif name == "write_file":
+            return await bash_fn(f'echo {shlex.quote(args["content"])} > {shlex.quote(args["path"])} 2>&1')
+        elif name == "list_directory":
+            return await bash_fn(f'ls -la {shlex.quote(args.get("path", "."))} 2>&1')
+        elif name == "search_files":
+            return await bash_fn(f'find {shlex.quote(args.get("path", "."))} -name {shlex.quote(args["pattern"])} 2>&1')
+        elif name == "execute_command":
+            return await bash_fn(f'{args["command"]} 2>&1')
+        elif name == "get_env":
+            return await bash_fn(f'printenv {shlex.quote(args["name"])} 2>&1')
+        else:
+            return f"Unknown tool: {name}"
+    except KeyError as e:
+        return f"Error: missing required argument {e}"
 
 
 # =============================================================================
