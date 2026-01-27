@@ -594,10 +594,6 @@ class PromptInjectionEnv(vf.SandboxEnv):
             if cond.__name__ != "no_tools_called"
         ]
 
-        # Remove tool metrics from ToolEnv - they track Adv's tools, not target's
-        # and Adv doesn't use tools (it outputs plain text injections)
-        self.rubrics = [r for r in self.rubrics if not hasattr(r, 'tool_names')]
-
     async def setup_state(self, state: vf.State) -> vf.State:
         """Initialize episode state."""
         state = await super().setup_state(state)
