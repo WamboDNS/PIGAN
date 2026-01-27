@@ -92,7 +92,6 @@ uv run prime eval \
 |-----|------|---------|-------------|
 | `attack_modes` | list[str] | `["memory", "sandbox"]` | Modes to include |
 | `defense_levels` | list[str] | `["easy", "medium", "hard"]` | Levels to include |
-| `num_samples_per_config` | int | `10` | Samples per mode/level |
 | `max_turns` | int | `3` | Max Adv attempts per episode |
 | `seed` | int | `42` | Random seed |
 
