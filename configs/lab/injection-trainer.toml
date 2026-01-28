@@ -8,4 +8,4 @@ max_tokens = 1024
 
 [[env]]
 id = "wambosec/injection-trainer"
-args = { attack_modes = ["sandbox"], defense_levels = ["hard"], max_turns = 6 }
+args = { attack_modes = ["memory"], defense_levels = ["medium"], max_turns = 6 }
