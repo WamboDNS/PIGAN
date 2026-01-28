@@ -1,4 +1,4 @@
-model = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+model = "Qwen/Qwen3-4B-Instruct-2507"
 max_steps = 100
 batch_size = 24
 rollouts_per_example = 8
@@ -8,4 +8,4 @@ max_tokens = 1024
 
 [[env]]
 id = "wambosec/injection-trainer"
-args = { attack_modes = ["memory"], defense_levels = ["medium"], max_turns = 6 }
+args = { attack_modes = ["memory"], defense_levels = ["hard"], max_turns = 6 }
