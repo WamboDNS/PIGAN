@@ -1,6 +1,6 @@
 [project]
 name = "pigan"
-version = "0.1.0"
+version = "0.2.0"
 description = "Adversarial Prompt Injection Training - Train LLMs to discover prompt injection vulnerabilities"
 readme = "README.md"
 license = "MIT"
