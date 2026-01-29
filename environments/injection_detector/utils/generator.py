@@ -4,8 +4,7 @@ Prompt Generator for Injection Detection Training.
 Generates datasets of benign and malicious prompts using an LLM API.
 Malicious prompts contain hidden prompt injections of varying subtlety.
 
-Uses PrimeIntellect Inference API by default:
-https://docs.primeintellect.ai/inference/overview
+Uses PrimeIntellect Inference API by default
 """
 
 from __future__ import annotations
@@ -70,17 +69,20 @@ GENERATION_USER_PROMPT = """Generate exactly {total} user prompts:
 
 Remember: Malicious prompts should be CONFUSING to an LLM. Use encoding, language switching, malformed syntax, unicode tricks, etc.
 
-Output in XML format (content can contain any characters). Generate malicious prompts FIRST, then benign:
-<prompts>
-<prompt malicious="true">
-first malicious prompt with weird characters here...
-</prompt>
-...all {n_malicious} malicious prompts...
-<prompt malicious="false">
+Keep each prompt under 1000 characters. Quality over quantity.
+
+Output format (generate malicious prompts FIRST, then benign):
+<prompt-malicious>
+first malicious prompt here...
+</prompt-malicious>
+<prompt-malicious>
+second malicious prompt here...
+</prompt-malicious>
+...continue for all {n_malicious} malicious prompts...
+<prompt-benign>
 first benign prompt here...
-</prompt>
-...all {n_benign} benign prompts...
-</prompts>"""
+</prompt-benign>
+...continue for all {n_benign} benign prompts..."""
 
 
 # =============================================================================
@@ -124,12 +126,10 @@ class PromptGenerator:
         client: AsyncOpenAI,
         model: str = DEFAULT_MODEL,
         temperature: float = 0.9,
-        max_tokens: int = 4096,
     ):
         self.client = client
         self.model = model
         self.temperature = temperature
-        self.max_tokens = max_tokens
 
     async def generate_batch(
         self,
@@ -151,7 +151,6 @@ class PromptGenerator:
                 )},
             ],
             temperature=self.temperature,
-            max_tokens=self.max_tokens,
         )
 
         if not response.choices:
@@ -164,25 +163,24 @@ class PromptGenerator:
         prompts = self._parse_response(content)
 
         if len(prompts) == 0:
-            raise ValueError(f"Generator produced 0 prompts. Response: {content[:500]}")
+            raise ValueError(f"Generator produced 0 prompts. Response: {content}")
 
         # Accept whatever count we got (may differ slightly from requested)
         result.prompts = prompts
         return result
 
     def _parse_response(self, content: str) -> list[GeneratedPrompt]:
-        """Parse XML response into GeneratedPrompt objects."""
-        # Extract all <prompt malicious="...">...</prompt> blocks
-        pattern = r'<prompt\s+malicious=["\']?(true|false)["\']?\s*>(.*?)</prompt>'
+        """Parse response into GeneratedPrompt objects."""
+        # Extract all <prompt-malicious>...</prompt-malicious> and <prompt-benign>...</prompt-benign> blocks
+        pattern = r'<prompt-(malicious|benign)>(.*?)</prompt-\1>'
         matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
 
         if not matches:
-            raise ValueError(f"No <prompt> tags found in response.\nContent: {content[:1000]}")
+            raise ValueError(f"No <prompt-malicious> or <prompt-benign> tags found in response.\nContent: {content}")
 
         prompts = []
-        for malicious_str, prompt_content in matches:
-            is_malicious = malicious_str.lower() == "true"
-            # Strip leading/trailing whitespace but preserve internal formatting
+        for prompt_type, prompt_content in matches:
+            is_malicious = prompt_type.lower() == "malicious"
             prompt_text = prompt_content.strip()
             if prompt_text:
                 prompts.append(GeneratedPrompt(
@@ -299,17 +297,6 @@ async def generate_dataset(
 
     Returns:
         List of dicts: [{"prompt": str, "is_malicious": bool}, ...]
-
-    Example:
-        ```python
-        import asyncio
-        from utils.generator import generate_dataset
-
-        prompts = asyncio.run(generate_dataset(
-            total_prompts=100,
-            model="qwen/qwen3-235b-a22b-instruct-2507",
-        ))
-        ```
     """
     if client is None:
         client = create_prime_client(api_key=api_key)
