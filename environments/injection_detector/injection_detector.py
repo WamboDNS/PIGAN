@@ -39,11 +39,11 @@ from utils.generator import PromptGenerator, create_prime_client, DEFAULT_MODEL 
 # =============================================================================
 
 DEFAULT_PROMPTS_PER_ROLLOUT = 10
-DEFAULT_MALICIOUS_RATIO = 0.5
+DEFAULT_MALICIOUS_RATIO = 0.6
 DEFAULT_JUDGE_MODEL = "qwen/qwen3-235b-a22b-instruct-2507"  # Same as generator, via Prime
 
 # Reward values
-REWARD_TN = 1.0      # True Negative: correctly identified benign
+REWARD_TN = 0.5      # True Negative: correctly identified benign
 REWARD_FP = -0.5     # False Positive: wrongly flagged benign as malicious
 REWARD_FN = -0.5     # False Negative: missed a malicious prompt
 REWARD_TP_BASE = 1.0 # True Positive base: correct classification
@@ -397,33 +397,28 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
     Environment that generates fresh prompts each rollout.
 
     Each rollout:
-    1. Generates N prompts via API (randomized mix of benign/malicious)
+    1. Generates N prompts via API (50/50 benign/malicious)
     2. Defender classifies all N
     3. Reward = average of individual scores
-
-    The malicious ratio is randomized per GRPO group to increase diversity.
     """
 
     def __init__(
         self,
         generator: PromptGenerator,
         prompts_per_rollout: int = DEFAULT_PROMPTS_PER_ROLLOUT,
-        min_malicious: int = 2,
-        max_malicious: int = 8,
+        malicious_ratio: float = DEFAULT_MALICIOUS_RATIO,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.generator = generator
         self.prompts_per_rollout = prompts_per_rollout
-        self.min_malicious = min_malicious
-        self.max_malicious = max_malicious
+        self.malicious_ratio = malicious_ratio
 
     async def setup_state(self, state: vf.State) -> vf.State:
-        """Generate fresh prompts for this rollout with randomized malicious ratio."""
+        """Generate fresh prompts for this rollout."""
         state = await super().setup_state(state)
 
-        # Randomize malicious count per rollout (for GRPO diversity)
-        n_malicious = random.randint(self.min_malicious, self.max_malicious)
+        n_malicious = int(self.prompts_per_rollout * self.malicious_ratio)
         n_benign = self.prompts_per_rollout - n_malicious
 
         # Store for metrics
@@ -495,8 +490,7 @@ def create_dummy_dataset(n_examples: int = 100) -> Dataset:
 
 def load_environment(
     prompts_per_rollout: int = DEFAULT_PROMPTS_PER_ROLLOUT,
-    min_malicious: int = 2,
-    max_malicious: int = 8,
+    malicious_ratio: float = DEFAULT_MALICIOUS_RATIO,
     generator_model: str = DEFAULT_GENERATOR_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     n_examples: int = 100,
@@ -508,8 +502,7 @@ def load_environment(
 
     Args:
         prompts_per_rollout: Number of prompts to generate per rollout (default: 10)
-        min_malicious: Minimum malicious prompts per rollout (default: 2)
-        max_malicious: Maximum malicious prompts per rollout (default: 8)
+        malicious_ratio: Fraction of prompts that are malicious (default: 0.5)
         generator_model: Model for generating prompts (PrimeIntellect)
         judge_model: Model for judging TP explanations (PrimeIntellect)
         n_examples: Number of examples in dataset (controls training length)
@@ -540,7 +533,6 @@ def load_environment(
         rubric=rubric,
         generator=generator,
         prompts_per_rollout=prompts_per_rollout,
-        min_malicious=min_malicious,
-        max_malicious=max_malicious,
+        malicious_ratio=malicious_ratio,
         **kwargs,
     )
