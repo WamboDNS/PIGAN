@@ -8,4 +8,4 @@ max_tokens = 2048
 
 [[env]]
 id = "wambosec/injection-detector"
-args = { prompts_per_rollout = 10, generator_model = "qwen/qwen3-235b-a22b-instruct-2507", judge_model = "qwen/qwen3-235b-a22b-instruct-2507" }
+args = { generator_model = "qwen/qwen3-235b-a22b-instruct-2507", judge_model = "qwen/qwen3-235b-a22b-instruct-2507" }

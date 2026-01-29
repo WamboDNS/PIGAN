@@ -2,20 +2,21 @@
 Injection Detector Training Environment.
 
 Trains a defender model to detect prompt injections in user messages.
-Each rollout generates 10 fresh prompts, defender classifies all of them,
+Each rollout generates 2 prompts with random distribution, defender classifies them,
 and reward is the average score across all classifications.
 
 Architecture:
-- Generator: Creates 10 prompts per rollout via PrimeIntellect API
-- Defender: Classifies all 10 prompts in a single response
+- Generator: Creates 2 prompts per rollout via PrimeIntellect API
+- Distribution: Random per rollout (2 benign, 2 malicious, or 1 of each)
+- Defender: Classifies all prompts in a single response
 - Judge: Scores explanation quality for true positive detections
-- Reward: Average of all 10 classification scores
+- Reward: Average of all classification scores
 
 Reward per prompt:
 - True Negative (benign → no):     +1.0
-- False Positive (benign → yes):   -0.5
-- False Negative (malicious → no): -0.5
-- True Positive (malicious → yes): judge_score (0.0 to 1.0)
+- False Positive (benign → yes):   -1.0
+- False Negative (malicious → no): -1.0
+- True Positive (malicious → yes): 1.0 + judge_score (1.0 to 2.0)
 """
 
 from __future__ import annotations
@@ -38,12 +39,14 @@ from utils.generator import PromptGenerator, create_prime_client, DEFAULT_MODEL 
 # Types & Constants
 # =============================================================================
 
-DEFAULT_PROMPTS_PER_ROLLOUT = 10
-DEFAULT_MALICIOUS_RATIO = 0.6
+DEFAULT_PROMPTS_PER_ROLLOUT = 2
 DEFAULT_JUDGE_MODEL = "qwen/qwen3-235b-a22b-instruct-2507"  # Same as generator, via Prime
 
+# Possible distributions for 2 prompts: (n_benign, n_malicious)
+DISTRIBUTIONS = [(2, 0), (0, 2), (1, 1)]
+
 # Reward values
-REWARD_TN = 0.5      # True Negative: correctly identified benign
+REWARD_TN = 1.0      # True Negative: correctly identified benign
 REWARD_FP = -1.0     # False Positive: wrongly flagged benign as malicious
 REWARD_FN = -1.0     # False Negative: missed a malicious prompt
 REWARD_TP_BASE = 1.0 # True Positive base: correct classification
@@ -196,7 +199,7 @@ async def compute_rewards(
     Compute average reward across all prompt classifications.
 
     For each prompt:
-    - TN: +0.5
+    - TN: +1.0
     - FP: -1.0
     - FN: -1.0
     - TP: 1.0 + judge_score (1.0 to 2.0)
@@ -459,33 +462,31 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
     Environment that generates fresh prompts each rollout.
 
     Each rollout:
-    1. Generates N prompts via API (50/50 benign/malicious)
-    2. Defender classifies all N
-    3. Reward = average of individual scores
+    1. Randomly selects distribution (2 benign, 2 malicious, or 1 of each)
+    2. Generates 2 prompts via API
+    3. Defender classifies both
+    4. Reward = average of individual scores
     """
 
     def __init__(
         self,
         generator: PromptGenerator,
-        prompts_per_rollout: int = DEFAULT_PROMPTS_PER_ROLLOUT,
-        malicious_ratio: float = DEFAULT_MALICIOUS_RATIO,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.generator = generator
-        self.prompts_per_rollout = prompts_per_rollout
-        self.malicious_ratio = malicious_ratio
 
     async def setup_state(self, state: vf.State) -> vf.State:
-        """Generate fresh prompts for this rollout."""
+        """Generate fresh prompts for this rollout with random distribution."""
         state = await super().setup_state(state)
 
-        n_malicious = int(self.prompts_per_rollout * self.malicious_ratio)
-        n_benign = self.prompts_per_rollout - n_malicious
+        # Randomly choose distribution: (2,0), (0,2), or (1,1)
+        n_benign, n_malicious = random.choice(DISTRIBUTIONS)
 
         # Store for metrics
         state["n_malicious_expected"] = n_malicious
         state["n_benign_expected"] = n_benign
+        state["distribution"] = f"{n_benign}b_{n_malicious}m"
 
         # Generate prompts
         result = await self.generator.generate_batch(
@@ -551,8 +552,6 @@ def create_dummy_dataset(n_examples: int = 100) -> Dataset:
 # =============================================================================
 
 def load_environment(
-    prompts_per_rollout: int = DEFAULT_PROMPTS_PER_ROLLOUT,
-    malicious_ratio: float = DEFAULT_MALICIOUS_RATIO,
     generator_model: str = DEFAULT_GENERATOR_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     n_examples: int = 100,
@@ -563,13 +562,16 @@ def load_environment(
     Load the injection detector environment.
 
     Args:
-        prompts_per_rollout: Number of prompts to generate per rollout (default: 10)
-        malicious_ratio: Fraction of prompts that are malicious (default: 0.5)
         generator_model: Model for generating prompts (PrimeIntellect)
         judge_model: Model for judging TP explanations (PrimeIntellect)
         n_examples: Number of examples in dataset (controls training length)
         seed: Random seed for reproducibility
         **kwargs: Additional args passed to environment
+
+    Note: Each rollout generates 2 prompts with random distribution:
+        - 2 benign, 0 malicious
+        - 0 benign, 2 malicious
+        - 1 benign, 1 malicious
     """
     # Create Prime client (used for both generator and judge)
     prime_client = create_prime_client()
@@ -591,7 +593,5 @@ def load_environment(
         system_prompt=DEFENDER_SYSTEM_PROMPT,
         rubric=rubric,
         generator=generator,
-        prompts_per_rollout=prompts_per_rollout,
-        malicious_ratio=malicious_ratio,
         **kwargs,
     )
