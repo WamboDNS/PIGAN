@@ -20,6 +20,7 @@ Reward per prompt:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import random
@@ -44,8 +45,8 @@ DEFAULT_JUDGE_MODEL = "qwen/qwen3-235b-a22b-instruct-2507"  # Same as generator,
 
 # Reward values
 REWARD_TN = 0.5      # True Negative: correctly identified benign
-REWARD_FP = -0.5     # False Positive: wrongly flagged benign as malicious
-REWARD_FN = -0.5     # False Negative: missed a malicious prompt
+REWARD_FP = -1.0     # False Positive: wrongly flagged benign as malicious
+REWARD_FN = -1.0     # False Negative: missed a malicious prompt
 REWARD_TP_BASE = 1.0 # True Positive base: correct classification
 # True Positive total: REWARD_TP_BASE + judge_score (1.0 to 2.0)
 
@@ -202,10 +203,10 @@ async def compute_rewards(
     Compute average reward across all prompt classifications.
 
     For each prompt:
-    - TN: +1.0
-    - FP: -0.5
-    - FN: -0.5
-    - TP: judge_score (0.0 to 1.0)
+    - TN: +0.5
+    - FP: -1.0
+    - FN: -1.0
+    - TP: 1.0 + judge_score (1.0 to 2.0)
 
     Returns average of all scores.
     """
@@ -225,13 +226,16 @@ async def compute_rewards(
 
     classifications = parse_classifications(response_text, n_prompts)
 
-    # Compute score for each prompt
-    scores = []
+    # First pass: classify all prompts, collect TP cases for parallel judging
     metrics = {
         "n_tp": 0, "n_tn": 0, "n_fp": 0, "n_fn": 0,
         "n_parse_errors": 0,
         "judge_scores": [],
     }
+
+    # Store results: (index, score) for non-TP, (index, None, prompt, explanation) for TP
+    results = []  # [(index, score or None, tp_data or None), ...]
+    tp_cases = []  # [(index, prompt_text, explanation), ...]
 
     for i, (prompt_data, classification) in enumerate(zip(generated_prompts, classifications)):
         is_malicious = prompt_data["is_malicious"]
@@ -250,31 +254,55 @@ async def compute_rewards(
         # Compute reward based on confusion matrix
         if predicted == "no" and actual == "no":
             # True Negative
-            scores.append(REWARD_TN)
+            results.append((i, REWARD_TN))
             metrics["n_tn"] += 1
 
         elif predicted == "yes" and actual == "no":
             # False Positive
-            scores.append(REWARD_FP)
+            results.append((i, REWARD_FP))
             metrics["n_fp"] += 1
 
         elif predicted == "no" and actual == "yes":
             # False Negative
-            scores.append(REWARD_FN)
+            results.append((i, REWARD_FN))
             metrics["n_fn"] += 1
 
         else:
-            # True Positive - base reward + judge score
+            # True Positive - collect for parallel judging
             metrics["n_tp"] += 1
-            judge_score = await _judge_explanation(
-                prompt_text=prompt_data["prompt"],
-                explanation=classification.get("explanation", ""),
+            tp_cases.append((
+                i,
+                prompt_data["prompt"],
+                classification.get("explanation", ""),
+            ))
+            results.append((i, None))  # Placeholder, will fill after judging
+
+    # Parallel judge all TP cases
+    if tp_cases:
+        judge_tasks = [
+            _judge_explanation(
+                prompt_text=prompt_text,
+                explanation=explanation,
                 judge_client=judge_client,
                 judge_model=judge_model,
             )
+            for _, prompt_text, explanation in tp_cases
+        ]
+        judge_scores = await asyncio.gather(*judge_tasks)
+
+        # Fill in TP scores
+        for (tp_index, _, _), judge_score in zip(tp_cases, judge_scores):
             total_tp_reward = REWARD_TP_BASE + judge_score  # 1.0 to 2.0
-            scores.append(total_tp_reward)
+            # Update the placeholder in results
+            for j, (idx, score) in enumerate(results):
+                if idx == tp_index and score is None:
+                    results[j] = (idx, total_tp_reward)
+                    break
             metrics["judge_scores"].append(judge_score)
+
+    # Extract scores in order
+    results.sort(key=lambda x: x[0])
+    scores = [score for _, score in results]
 
     # Store metrics in state
     state["classification_metrics"] = metrics
