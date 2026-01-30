@@ -34,7 +34,7 @@ from datasets import Dataset, load_dataset
 # =============================================================================
 
 # Reward values (scaled 0-1)
-REWARD_TN = 0.7      # True Negative: correctly identified benign
+REWARD_TN = 1.0      # True Negative: correctly identified benign
 REWARD_FP = 0.0      # False Positive: wrongly flagged benign as malicious
 REWARD_FN = 0.0      # False Negative: missed a malicious prompt (worst)
 REWARD_TP = 1.0      # True Positive: correctly detected malicious
