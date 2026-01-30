@@ -4,7 +4,7 @@ batch_size = 24
 rollouts_per_example = 8
 
 [sampling]
-max_tokens = 1024
+max_tokens = 4096
 
 [[env]]
 id = "wambosec/injection-trainer"
