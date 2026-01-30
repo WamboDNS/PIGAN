@@ -9,13 +9,13 @@ Architecture:
 - Dataset: wambosec/prompt-injections (HuggingFace)
 - Sampling: Random per rollout (50% benign, 50% malicious)
 - Defender: Classifies prompt with yes/no
-- Reward: 1 for correct, 0.33 for FP, 0 for FN (scaled 0-1)
+- Reward: 1.0 for TP, 0.5 for TN, 0 for FP/FN (scaled 0-1)
 
 Reward values:
-- True Negative (benign correct):     1.0
-- False Positive (benign wrong):      0.33
-- False Negative (malicious missed):  0.0
 - True Positive (malicious caught):   1.0
+- True Negative (benign correct):     0.5
+- False Positive (benign wrong):      0.0
+- False Negative (malicious missed):  0.0
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ from datasets import Dataset, load_dataset
 # =============================================================================
 
 # Reward values (scaled 0-1)
-REWARD_TN = 1.0      # True Negative: correctly identified benign
-REWARD_FP = 0.33     # False Positive: wrongly flagged benign as malicious
+REWARD_TN = 0.7      # True Negative: correctly identified benign
+REWARD_FP = 0.0      # False Positive: wrongly flagged benign as malicious
 REWARD_FN = 0.0      # False Negative: missed a malicious prompt (worst)
 REWARD_TP = 1.0      # True Positive: correctly detected malicious
 
@@ -99,10 +99,10 @@ async def compute_reward(completion: vf.Messages, state: vf.State) -> float:
     Compute reward for single prompt classification.
 
     Rewards (scaled 0-1):
-    - TN: 1.0 (correctly identified benign)
-    - FP: 0.33 (wrongly flagged benign as malicious)
-    - FN: 0.0 (missed a malicious prompt - worst)
     - TP: 1.0 (correctly detected malicious)
+    - TN: 0.5 (correctly identified benign)
+    - FP: 0.0 (wrongly flagged benign as malicious)
+    - FN: 0.0 (missed a malicious prompt)
     """
     # Get the prompt from state
     prompt_data = state.get("prompt_data")
@@ -285,8 +285,8 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
         # Get the active pool (train or eval)
         pool = self.get_active_pool()
 
-        # Randomly choose benign or malicious
-        is_malicious = random.choice([True, False])
+        # Sample with 75% malicious, 25% benign distribution
+        is_malicious = random.random() < 0.75
 
         if is_malicious:
             prompt_data = random.choice(pool.malicious_prompts)
