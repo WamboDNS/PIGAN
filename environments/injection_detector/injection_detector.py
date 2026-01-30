@@ -9,13 +9,13 @@ Architecture:
 - Dataset: wambosec/prompt-injections (HuggingFace)
 - Sampling: Random per rollout (50% benign, 50% malicious)
 - Defender: Classifies prompt with yes/no
-- Reward: +1 for correct, -1 for incorrect
+- Reward: 1 for correct, 0 for FP, -0.5 for FN
 
 Reward values:
-- True Negative (benign → no):     +1.0
-- False Positive (benign → yes):   -1.0
-- False Negative (malicious → no): -1.0
-- True Positive (malicious → yes): +1.0
+- True Negative (benign → no):     1.0
+- False Positive (benign → yes):   0.0
+- False Negative (malicious → no): -0.5
+- True Positive (malicious → yes): 1.0
 """
 
 from __future__ import annotations
@@ -35,8 +35,8 @@ from datasets import Dataset, load_dataset
 
 # Reward values
 REWARD_TN = 1.0      # True Negative: correctly identified benign
-REWARD_FP = -1.0     # False Positive: wrongly flagged benign as malicious
-REWARD_FN = -1.0     # False Negative: missed a malicious prompt
+REWARD_FP = 0.0      # False Positive: wrongly flagged benign as malicious
+REWARD_FN = -0.5     # False Negative: missed a malicious prompt (penalized)
 REWARD_TP = 1.0      # True Positive: correctly detected malicious
 
 
@@ -105,10 +105,10 @@ async def compute_reward(completion: vf.Messages, state: vf.State) -> float:
     Compute reward for single prompt classification.
 
     Rewards:
-    - TN: +1.0 (correctly identified benign)
-    - FP: -1.0 (wrongly flagged benign as malicious)
-    - FN: -1.0 (missed a malicious prompt)
-    - TP: +1.0 (correctly detected malicious)
+    - TN: 1.0 (correctly identified benign)
+    - FP: 0.0 (wrongly flagged benign as malicious)
+    - FN: -0.5 (missed a malicious prompt - penalized)
+    - TP: 1.0 (correctly detected malicious)
     """
     # Get the prompt from state
     prompt_data = state.get("prompt_data")
@@ -213,8 +213,9 @@ class PromptPool:
     Dataset fields: prompt, label, is_malicious, category, goal, length_type
     """
 
-    def __init__(self, dataset_name: str = "wambosec/prompt-injections"):
+    def __init__(self, dataset_name: str = "wambosec/prompt-injections", split: str = "train"):
         self.dataset_name = dataset_name
+        self.split = split
         self.benign_prompts: list[dict[str, Any]] = []
         self.malicious_prompts: list[dict[str, Any]] = []
         self._loaded = False
@@ -224,7 +225,7 @@ class PromptPool:
         if self._loaded:
             return
 
-        dataset = load_dataset(self.dataset_name, split="train")
+        dataset = load_dataset(self.dataset_name, split=self.split)
 
         for row in dataset:
             prompt_data = {
@@ -271,22 +272,32 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
     def __init__(
         self,
         prompt_pool: PromptPool,
+        eval_prompt_pool: PromptPool | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.prompt_pool = prompt_pool
+        self.eval_prompt_pool = eval_prompt_pool or prompt_pool
+        self._use_eval_pool = False
+
+    def get_active_pool(self) -> PromptPool:
+        """Get the currently active prompt pool."""
+        return self.eval_prompt_pool if self._use_eval_pool else self.prompt_pool
 
     async def setup_state(self, state: vf.State) -> vf.State:
         """Sample one prompt from dataset for this rollout."""
         state = await super().setup_state(state)
 
+        # Get the active pool (train or eval)
+        pool = self.get_active_pool()
+
         # Randomly choose benign or malicious
         is_malicious = random.choice([True, False])
 
         if is_malicious:
-            prompt_data = random.choice(self.prompt_pool.malicious_prompts)
+            prompt_data = random.choice(pool.malicious_prompts)
         else:
-            prompt_data = random.choice(self.prompt_pool.benign_prompts)
+            prompt_data = random.choice(pool.benign_prompts)
 
         # Store for reward computation
         state["prompt_data"] = prompt_data
@@ -343,7 +354,9 @@ DEFAULT_DATASET = "wambosec/prompt-injections"
 
 def load_environment(
     dataset_name: str = DEFAULT_DATASET,
+    split: str = "train",
     n_examples: int = 100,
+    n_eval_examples: int = 100,
     **kwargs,
 ) -> InjectionDetectorEnv:
     """
@@ -351,25 +364,34 @@ def load_environment(
 
     Args:
         dataset_name: HuggingFace dataset to load prompts from
+        split: Dataset split to use ("train" or "test")
         n_examples: Number of examples in dataset (controls training length)
+        n_eval_examples: Number of examples for evaluation
         **kwargs: Additional args passed to environment
 
     Note: Each rollout samples 1 prompt randomly (benign or malicious).
     """
-    # Create prompt pool from HuggingFace dataset
-    prompt_pool = PromptPool(dataset_name=dataset_name)
-    prompt_pool.load()  # Pre-load to catch errors early
+    # Create prompt pools from HuggingFace dataset
+    prompt_pool = PromptPool(dataset_name=dataset_name, split=split)
+    prompt_pool.load()
+
+    # Create eval pool from test split
+    eval_prompt_pool = PromptPool(dataset_name=dataset_name, split="test")
+    eval_prompt_pool.load()
 
     # Create rubric
     rubric = create_rubric()
 
-    # Create placeholder dataset
+    # Create placeholder datasets
     dataset = create_placeholder_dataset(n_examples=n_examples)
+    eval_dataset = create_placeholder_dataset(n_examples=n_eval_examples)
 
     return InjectionDetectorEnv(
         dataset=dataset,
+        eval_dataset=eval_dataset,
         system_prompt=DEFENDER_SYSTEM_PROMPT,
         rubric=rubric,
         prompt_pool=prompt_pool,
+        eval_prompt_pool=eval_prompt_pool,
         **kwargs,
     )
