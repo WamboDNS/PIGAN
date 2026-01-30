@@ -343,7 +343,7 @@ def create_placeholder_dataset(n_examples: int = 100) -> Dataset:
 # =============================================================================
 
 # Default HuggingFace dataset
-DEFAULT_DATASET = "wambosec/prompt-injections"
+DEFAULT_DATASET = "wambosec/prompt-injections-subtle"
 
 
 def load_environment(

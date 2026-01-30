@@ -10,7 +10,7 @@ max_tokens = 4096
 
 [[env]]
 id = "wambosec/injection-detector"
-args = { dataset_name = "wambosec/prompt-injections" }
+args = { dataset_name = "wambosec/prompt-injections-subtle" }
 
 [buffer]
 online_difficulty_filtering = true
