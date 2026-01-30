@@ -1,0 +1,23 @@
+model = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+max_steps = 100
+batch_size = 32
+rollouts_per_example = 16
+oversampling_factor = 2.0
+max_async_level = 2
+
+[sampling]
+max_tokens = 4096
+
+[[env]]
+id = "wambosec/injection-detector"
+args = { dataset_name = "wambosec/prompt-injections" }
+
+[buffer]
+online_difficulty_filtering = true
+easy_threshold = 0.8
+hard_threshold = 0.2
+
+[val]
+num_examples = 32
+rollouts_per_example = 4
+interval = 5
