@@ -1,9 +1,9 @@
-model = "meta-llama/Llama-3.2-3B-Instruct"
+model = "arcee-ai/Trinity-Mini"
 max_steps = 100
 batch_size = 32
-rollouts_per_example = 16
-oversampling_factor = 2.0
-max_async_level = 2
+rollouts_per_example = 32
+oversampling_factor = 3.0
+max_async_level = 3
 
 [sampling]
 max_tokens = 4096
