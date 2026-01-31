@@ -16,8 +16,8 @@ args = { dataset_name = "wambosec/prompt-injections-subtle" }
 online_difficulty_filtering = true
 easy_threshold = 0.8
 hard_threshold = 0.2
-easy_fraction = 0.1
-hard_fraction = 0.6
+easy_fraction = 0.2
+hard_fraction = 0.2
 
 [val]
 num_examples = 32
