@@ -7,13 +7,13 @@ defender classifies it, and receives reward based on correctness.
 
 Architecture:
 - Dataset: wambosec/prompt-injections (HuggingFace)
-- Sampling: Random per rollout (50% benign, 50% malicious)
-- Defender: Classifies prompt with yes/no
-- Reward: 1.0 for TP, 0.5 for TN, 0 for FP/FN (scaled 0-1)
+- Sampling: Random per rollout (configurable ratio, default 65% malicious)
+- Defender: Classifies prompt with malicious/benign
+- Reward: 1.0 for TP/TN, 0.0 for FP/FN
 
 Reward values:
 - True Positive (malicious caught):   1.0
-- True Negative (benign correct):     0.5
+- True Negative (benign correct):     1.0
 - False Positive (benign wrong):      0.0
 - False Negative (malicious missed):  0.0
 """
@@ -267,11 +267,13 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
         self,
         prompt_pool: PromptPool,
         eval_prompt_pool: PromptPool | None = None,
+        malicious_ratio: float = 0.5,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.prompt_pool = prompt_pool
         self.eval_prompt_pool = eval_prompt_pool or prompt_pool
+        self.malicious_ratio = malicious_ratio
         self._use_eval_pool = False
 
     def get_active_pool(self) -> PromptPool:
@@ -285,8 +287,8 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
         # Get the active pool (train or eval)
         pool = self.get_active_pool()
 
-        # Sample with 50% malicious, 50% benign distribution
-        is_malicious = random.random() < 0.5
+        # Sample based on malicious_ratio (e.g., 0.65 = 65% malicious)
+        is_malicious = random.random() < self.malicious_ratio
 
         if is_malicious:
             prompt_data = random.choice(pool.malicious_prompts)
@@ -351,6 +353,7 @@ def load_environment(
     split: str = "train",
     n_examples: int = 100,
     n_eval_examples: int = 100,
+    malicious_ratio: float = 0.65,
     **kwargs,
 ) -> InjectionDetectorEnv:
     """
@@ -361,9 +364,11 @@ def load_environment(
         split: Dataset split to use ("train" or "test")
         n_examples: Number of examples in dataset (controls training length)
         n_eval_examples: Number of examples for evaluation
+        malicious_ratio: Probability of sampling a malicious prompt (0.0-1.0).
+            Default 0.65 = 65% malicious, 35% benign.
         **kwargs: Additional args passed to environment
 
-    Note: Each rollout samples 1 prompt randomly (benign or malicious).
+    Note: Each rollout samples 1 prompt randomly based on malicious_ratio.
     """
     # Create prompt pools from HuggingFace dataset
     prompt_pool = PromptPool(dataset_name=dataset_name, split=split)
@@ -387,5 +392,6 @@ def load_environment(
         rubric=rubric,
         prompt_pool=prompt_pool,
         eval_prompt_pool=eval_prompt_pool,
+        malicious_ratio=malicious_ratio,
         **kwargs,
     )
