@@ -1,5 +1,5 @@
 model = "Qwen/Qwen3-4B-Instruct-2507"
-max_steps = 100
+max_steps = 50
 batch_size = 32
 rollouts_per_example = 16
 oversampling_factor = 2.0
@@ -16,7 +16,7 @@ args = { dataset_name = "wambosec/prompt-injections-subtle" }
 online_difficulty_filtering = true
 easy_threshold = 0.8
 hard_threshold = 0.2
-easy_fraction = 0.3
+easy_fraction = 0.1
 hard_fraction = 0.3
 
 [val]

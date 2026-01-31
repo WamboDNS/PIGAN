@@ -2,7 +2,7 @@
 name = "injection-detector"
 description = "Train LLMs to detect prompt injections using dynamic prompt generation"
 tags = ["security", "classification", "prompt-injection", "single-turn", "train", "eval"]
-version = "0.1.8"
+version = "0.1.8.2"
 requires-python = ">=3.10"
 dependencies = [
     "verifiers>=0.1.9.post3",

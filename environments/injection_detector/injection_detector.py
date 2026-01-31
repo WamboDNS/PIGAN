@@ -285,8 +285,8 @@ class InjectionDetectorEnv(vf.SingleTurnEnv):
         # Get the active pool (train or eval)
         pool = self.get_active_pool()
 
-        # Sample with 75% malicious, 25% benign distribution
-        is_malicious = random.random() < 0.75
+        # Sample with 50% malicious, 50% benign distribution
+        is_malicious = random.random() < 0.5
 
         if is_malicious:
             prompt_data = random.choice(pool.malicious_prompts)

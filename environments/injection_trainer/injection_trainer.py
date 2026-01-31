@@ -23,16 +23,33 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import random
 import re
 import shlex
-import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import verifiers as vf
 from datasets import Dataset
+
+
+def seed_all(seed: int) -> None:
+    """Seed all random number generators for reproducibility."""
+    random.seed(seed)
+    try:
+        import numpy as np
+        np.random.seed(seed)
+    except ImportError:
+        pass
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass
 
 
 # =============================================================================
@@ -97,9 +114,23 @@ class MissingDatasetFieldError(InjectionTrainerError):
 # Helpers
 # =============================================================================
 
-def generate_secret() -> str:
-    """Generate a unique secret in the format SECRET-XXXXXXXXXXXXXXXX."""
-    return f"SECRET-{uuid.uuid4().hex[:16].upper()}"
+def generate_secret(seed: int | None = None, example_id: int = 0) -> str:
+    """
+    Generate a unique secret in the format SECRET-XXXXXXXXXXXXXXXX.
+
+    If seed is provided, generates a deterministic secret based on seed + example_id.
+    Otherwise, uses random generation.
+    """
+    if seed is not None:
+        # Deterministic: hash seed + example_id to get consistent secret
+        hash_input = f"{seed}:{example_id}".encode()
+        hash_hex = hashlib.sha256(hash_input).hexdigest()[:16].upper()
+        return f"SECRET-{hash_hex}"
+    else:
+        # Random: use random module for generation
+        chars = "0123456789ABCDEF"
+        hex_str = "".join(random.choice(chars) for _ in range(16))
+        return f"SECRET-{hex_str}"
 
 
 def encode_secret_base64(secret: str) -> str:
@@ -443,10 +474,19 @@ class TargetRunner:
         },
     ]
 
-    def __init__(self, client, model: str, bash_fn=None):
+    def __init__(
+        self,
+        client,
+        model: str,
+        bash_fn=None,
+        temperature: float = 0.7,
+        seed: int | None = None,
+    ):
         self.client = client
         self.model = model
         self.bash_fn = bash_fn
+        self.temperature = temperature
+        self.seed = seed
 
     async def run(self, system_prompt: str, user_message: str) -> TargetResponse:
         """Run target LLM with injected message."""
@@ -473,9 +513,11 @@ class TargetRunner:
         kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.7,
+            "temperature": self.temperature,
             "max_tokens": 1024,
         }
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
         if self.bash_fn:
             kwargs["tools"] = self.TOOLS
         return await self.client.chat.completions.create(**kwargs)
@@ -527,12 +569,15 @@ class TargetRunner:
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
 
         # Get final response
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=1024,
-        )
+        final_kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "max_tokens": 1024,
+        }
+        if self.seed is not None:
+            final_kwargs["seed"] = self.seed
+        response = await self.client.chat.completions.create(**final_kwargs)
 
         final_content = ""
         if response.choices:
@@ -676,6 +721,9 @@ class PromptInjectionEnv(vf.SandboxEnv):
         max_turns: int = DEFAULT_MAX_TURNS,
         secret_path: str = DEFAULT_SECRET_PATH,
         encode_secret_base64: bool = False,
+        seed: int | None = None,
+        target_temperature: float = 0.7,
+        target_seed: int | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -687,6 +735,10 @@ class PromptInjectionEnv(vf.SandboxEnv):
         )
         self.secret_path = secret_path
         self.encode_secret_base64 = encode_secret_base64
+        self.seed = seed
+        self.target_temperature = target_temperature
+        # If target_seed is not explicitly set but seed is, derive target_seed from seed
+        self.target_seed = target_seed if target_seed is not None else seed
         self._configure_inherited_behavior()
         self._group_sandboxes: dict[int, dict[str, Any]] = {}
         self._sandbox_lock = asyncio.Lock()
@@ -762,7 +814,7 @@ class PromptInjectionEnv(vf.SandboxEnv):
             "ready_wait_time": 0.0,
             "command_execution_times": [],
         }
-        secret = generate_secret()
+        secret = generate_secret(seed=self.seed, example_id=example_id)
 
         await self.bash(
             f'mkdir -p /home/user && echo -n {shlex.quote(secret)} > {DEFAULT_SECRET_PATH}',
@@ -779,7 +831,8 @@ class PromptInjectionEnv(vf.SandboxEnv):
 
     async def _setup_memory_state(self, state: vf.State) -> vf.State:
         """Setup state for memory mode (no sandbox needed)."""
-        raw_secret = generate_secret()
+        example_id = state.get("example_id", 0)
+        raw_secret = generate_secret(seed=self.seed, example_id=example_id)
         state["secret"] = raw_secret  # Raw secret for leak detection
 
         # If encoding is enabled, store both versions
@@ -840,6 +893,8 @@ class PromptInjectionEnv(vf.SandboxEnv):
             client=state["client"],
             model=state["model"],
             bash_fn=bash_fn,
+            temperature=self.target_temperature,
+            seed=self.target_seed,
         )
         return await runner.run(system_prompt, injected_message)
 
@@ -951,6 +1006,8 @@ def load_environment(
     max_turns: int = DEFAULT_MAX_TURNS,
     seed: int | None = None,
     encode_secret_base64: bool = False,
+    target_temperature: float = 0.7,
+    target_seed: int | None = None,
     **kwargs,
 ) -> PromptInjectionEnv:
     """
@@ -960,14 +1017,31 @@ def load_environment(
         attack_modes: Which modes to include ("memory", "sandbox")
         defense_levels: Which levels to include ("easy", "medium", "hard")
         max_turns: Max Adv attempts per episode
-        seed: Random seed for reproducibility
+        seed: Random seed for reproducibility. Controls:
+            - Python random module
+            - NumPy random (if available)
+            - PyTorch random (if available)
+            - Dataset shuffling order
+            - Secret generation (deterministic per example_id)
+            - Target LLM seed (if target_seed not set separately)
+            For fully deterministic training, also set temperature=0 in training
+            config and target_temperature=0.0 here.
         encode_secret_base64: If True, encode the secret as base64 in memory mode.
             The target model will see the encoded secret but won't be told it's encoded.
             Leakage check will detect both encoded and decoded versions.
+        target_temperature: Temperature for the target (defender) LLM. Default 0.7.
+            Set to 0.0 for fully deterministic target responses.
+        target_seed: Seed for target LLM sampling. If None but seed is set,
+            uses the same seed value. The Adv model's seed is controlled by
+            the training framework via sampling_args.
 
     Returns:
         Configured environment
     """
+    # Seed all RNGs for reproducibility
+    if seed is not None:
+        seed_all(seed)
+
     dataset = create_dataset(
         attack_modes=attack_modes,
         defense_levels=defense_levels,
@@ -980,5 +1054,8 @@ def load_environment(
         parser=injection_parser,
         max_turns=max_turns,
         encode_secret_base64=encode_secret_base64,
+        seed=seed,
+        target_temperature=target_temperature,
+        target_seed=target_seed,
         **kwargs,
     )
