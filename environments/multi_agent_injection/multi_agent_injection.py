@@ -408,9 +408,8 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
 
     async def setup_state(self, state: vf.State) -> vf.State:
         """Initialize episode state."""
-        state = await super().setup_state(state)
-
-        # Extract info from dataset row
+        # Extract info from dataset row BEFORE calling super().setup_state()
+        # because get_initial_observation needs user_prompt and defense_level
         info = state.get("info", {})
         state["defense_level"] = info.get("defense_level", "medium")
         state["user_prompt"] = info.get("user_prompt", USER_PROMPTS[0])
@@ -432,6 +431,9 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         state["_current_injection"] = ""
         state["_last_defender_response"] = ""
         state["_last_acting_agent"] = None
+
+        # Now call super() which will invoke get_initial_observation
+        state = await super().setup_state(state)
 
         return state
 
