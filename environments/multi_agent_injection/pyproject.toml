@@ -1,0 +1,21 @@
+[project]
+name = "multi-agent-injection"
+description = "Multi-agent prompt injection training with trainable attacker and non-trainable defender"
+tags = ["security", "red-team", "prompt-injection", "multi-turn", "multi-agent", "train", "eval"]
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "verifiers @ git+https://github.com/WamboDNS/verifiers.git@feature/multi-agent",
+    "datasets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["multi_agent_injection.py", "pyproject.toml"]
+
+[tool.verifiers.eval]
+num_examples = 10
+rollouts_per_example = 3
