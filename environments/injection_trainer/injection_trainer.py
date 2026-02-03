@@ -740,8 +740,6 @@ class PromptInjectionEnv(vf.SandboxEnv):
         # If target_seed is not explicitly set but seed is, derive target_seed from seed
         self.target_seed = target_seed if target_seed is not None else seed
         self._configure_inherited_behavior()
-        self._group_sandboxes: dict[int, dict[str, Any]] = {}
-        self._sandbox_lock = asyncio.Lock()
 
     def _configure_inherited_behavior(self):
         """Remove inherited behaviors that don't apply to this environment."""
@@ -783,28 +781,10 @@ class PromptInjectionEnv(vf.SandboxEnv):
         state["max_turns"] = self.max_turns
 
     async def _setup_sandbox_state(self, state: vf.State) -> vf.State:
-        """Setup state for sandbox mode with shared sandbox per group."""
+        """Setup state for sandbox mode with one sandbox per rollout."""
         example_id = state.get("example_id", 0)
 
-        async with self._sandbox_lock:
-            if example_id not in self._group_sandboxes:
-                await self._create_group_sandbox(example_id, state)
-            else:
-                self._group_sandboxes[example_id]["active_count"] += 1
-
-        group_data = self._group_sandboxes[example_id]
-        state["sandbox_id"] = group_data["sandbox_id"]
-        state["sandbox_state"] = group_data["sandbox_state"]
-        state["secret"] = group_data["secret"]
-        state["secret_path"] = self.secret_path
-        state["_group_example_id"] = example_id
-        # Clear tools - Adv should output <injection> tags, not tool calls
-        state["oai_tools"] = None
-
-        return await vf.StatefulToolEnv.setup_state(self, state)
-
-    async def _create_group_sandbox(self, example_id: int, state: vf.State):
-        """Create a new sandbox for this example group."""
+        # Create sandbox for this rollout
         request = self.get_sandbox_request(state)
         sandbox = await self.with_retry(self.sandbox_client.create)(request)
         self.active_sandboxes.add(sandbox.id)
@@ -822,12 +802,14 @@ class PromptInjectionEnv(vf.SandboxEnv):
             sandbox_state=sandbox_state,
         )
 
-        self._group_sandboxes[example_id] = {
-            "sandbox_id": sandbox.id,
-            "sandbox_state": sandbox_state,
-            "secret": secret,
-            "active_count": 1,
-        }
+        state["sandbox_id"] = sandbox.id
+        state["sandbox_state"] = sandbox_state
+        state["secret"] = secret
+        state["secret_path"] = self.secret_path
+        # Clear tools - Adv should output <injection> tags, not tool calls
+        state["oai_tools"] = None
+
+        return await vf.StatefulToolEnv.setup_state(self, state)
 
     async def _setup_memory_state(self, state: vf.State) -> vf.State:
         """Setup state for memory mode (no sandbox needed)."""
@@ -990,10 +972,6 @@ class PromptInjectionEnv(vf.SandboxEnv):
 
     # --- Cleanup ---
 
-    @vf.cleanup
-    async def destroy_sandbox(self, state: vf.State):
-        """Override to NOT delete sandboxes per-rollout (shared per group)."""
-        pass
 
 
 # =============================================================================
