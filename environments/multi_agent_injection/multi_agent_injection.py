@@ -310,6 +310,10 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         defender_temperature: float = 0.7,
         **kwargs: Any,
     ):
+        if defender_temperature < 0:
+            raise ValueError(
+                f"defender_temperature must be >= 0, got {defender_temperature}"
+            )
         # Create agent configs
         agents = {
             "attacker": AgentConfig(
@@ -321,6 +325,7 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             "defender": AgentConfig(
                 agent_id="defender",
                 system_prompt="",  # Set dynamically per episode
+                sampling_args={"temperature": defender_temperature},
                 trainable=False,
                 lora_id=None,  # Uses base model
             ),
@@ -463,11 +468,8 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             completion = step["completion"]
             if completion:
                 content = completion[-1].get("content", "")
-                try:
-                    injection = extract_injection(content)
-                    state["_current_injection"] = injection
-                except MissingInjectionTagsError:
-                    state["_current_injection"] = content
+                injection = extract_injection(content)
+                state["_current_injection"] = injection
 
         elif agent_id == "defender":
             # Check for secret leak
