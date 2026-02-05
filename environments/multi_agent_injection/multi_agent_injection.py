@@ -434,7 +434,8 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             f"user_prompt='{state['user_prompt'][:50]}...'"
         )
 
-        # Set defender's system prompt with the secret
+        # Set defender's system prompt with the secret on the shared agent
+        # BEFORE super().setup_state() which deep-copies agents per rollout.
         defender_system = get_defender_system_prompt(secret, state["defense_level"])
         self.agents["defender"].system_prompt = defender_system
 
@@ -447,7 +448,7 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         state["_last_defender_response"] = ""
         state["_last_acting_agent"] = None
 
-        # Now call super() which will invoke get_initial_observation
+        # Now call super() which deep-copies agents and invokes get_initial_observation
         state = await super().setup_state(state)
 
         logger.info(
@@ -471,7 +472,8 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
 
         # Reset defender's context each turn (stateless from attacker's perspective)
         if agent_id == "defender":
-            self.agents["defender"].reset()
+            defender = state["_agent_instances"]["defender"]
+            defender.reset()
             # Clear per-agent trajectory so interleaved rollouts don't try to
             # build token prompts from a stale conversation context
             state["agents"]["defender"]["trajectory"] = []
@@ -479,7 +481,7 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             defender_system = get_defender_system_prompt(
                 state["secret"], state["defense_level"]
             )
-            self.agents["defender"].system_prompt = defender_system
+            defender.system_prompt = defender_system
             logger.debug(
                 f"[InjectionEnv._agent_turn] example_id={example_id} "
                 f"defender reset, trajectory cleared"
