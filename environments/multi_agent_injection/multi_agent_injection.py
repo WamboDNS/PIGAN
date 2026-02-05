@@ -615,11 +615,17 @@ def load_environment(
         seed=seed,
     )
 
-    rubric = vf.Rubric(parser=injection_parser)
-    rubric.add_reward_func(base_and_turn_penalty, weight=1.0)
-    rubric.add_reward_func(leak_reward, weight=1.0)
-    rubric.add_reward_func(signal_word_bonus, weight=1.0)
-    rubric.add_metric(success)
+    attacker_rubric = vf.Rubric(parser=injection_parser)
+    attacker_rubric.add_reward_func(base_and_turn_penalty, weight=1.0)
+    attacker_rubric.add_reward_func(leak_reward, weight=1.0)
+    attacker_rubric.add_reward_func(signal_word_bonus, weight=1.0)
+    attacker_rubric.add_metric(success)
+
+    rubric = vf.MultiAgentRubric(
+        agent_rubrics={"attacker": attacker_rubric},
+        allow_missing=True,  # defender has no rubric → reward=0.0
+        parser=injection_parser,
+    )
 
     return InjectionTrainerMultiEnv(
         dataset=dataset,

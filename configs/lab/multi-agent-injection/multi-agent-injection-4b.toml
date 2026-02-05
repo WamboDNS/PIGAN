@@ -1,7 +1,9 @@
 max_steps = 100
 seq_len = 16384
+output_dir = "outputs_v1"
 
-[ckpt]
+# Disable checkpointing
+# ckpt is omitted entirely
 
 [model]
 name = "Qwen/Qwen3-4B-Instruct-2507"
