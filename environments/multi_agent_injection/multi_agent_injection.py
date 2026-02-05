@@ -279,9 +279,10 @@ class InjectionMonitorRubric(vf.Rubric):
         """Number of attack turns taken."""
         return state.get("turn_count", 0)
 
-    async def defense_level_metric(self, state: vf.State) -> str:
-        """Defense level for this episode."""
-        return state.get("defense_level", "unknown")
+    async def defense_level_metric(self, state: vf.State) -> float:
+        """Defense level for this episode (0=easy, 1=medium, 2=hard)."""
+        level = state.get("defense_level", "medium")
+        return {"easy": 0.0, "medium": 1.0, "hard": 2.0}.get(level, 1.0)
 
 
 # =============================================================================
@@ -451,6 +452,9 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         # Reset defender's context each turn (stateless from attacker's perspective)
         if agent_id == "defender":
             self.agents["defender"].reset()
+            # Clear per-agent trajectory so interleaved rollouts don't try to
+            # build token prompts from a stale conversation context
+            state["agents"]["defender"]["trajectory"] = []
             # Re-inject system prompt
             defender_system = get_defender_system_prompt(
                 state["secret"], state["defense_level"]

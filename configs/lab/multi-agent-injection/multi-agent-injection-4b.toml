@@ -36,7 +36,7 @@ rollouts_per_example = 8
 max_tokens = 16384
 
 [[orchestrator.env]]
-id = "multi-agent-injection"
+id = "wambosec/multi-agent-injection"
 name = "multi-agent-injection"
 args = { defense_levels = ["hard"], max_turns = 6, seed = 187 }
 
