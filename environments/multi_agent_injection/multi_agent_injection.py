@@ -294,8 +294,7 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
     - attacker: Trainable, crafts injections to extract secrets
     - defender: Non-trainable, protects the secret in its system prompt
 
-    The defender gets a fresh context each turn (no memory of previous attacks).
-    The attacker sees the defender's responses and adapts strategy.
+    Both agents maintain full conversation history across turns.
     """
 
     def __init__(
@@ -462,23 +461,6 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             f"[InjectionEnv._agent_turn] START example_id={example_id} "
             f"agent={agent_id} turn_count={turn_count}"
         )
-
-        # Reset defender's context each turn (stateless from attacker's perspective)
-        if agent_id == "defender":
-            defender = state["_agent_instances"]["defender"]
-            defender.reset()
-            # Clear per-agent trajectory so interleaved rollouts don't try to
-            # build token prompts from a stale conversation context
-            state["agents"]["defender"]["trajectory"] = []
-            # Re-inject system prompt
-            defender_system = get_defender_system_prompt(
-                state["secret"], state["defense_level"]
-            )
-            defender.system_prompt = defender_system
-            logger.debug(
-                f"[InjectionEnv._agent_turn] example_id={example_id} "
-                f"defender reset, trajectory cleared"
-            )
 
         # Call parent implementation
         step = await super()._agent_turn(agent_id, state)
