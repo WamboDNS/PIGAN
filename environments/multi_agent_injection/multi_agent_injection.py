@@ -625,7 +625,6 @@ def load_environment(
 
     rubric = vf.MultiAgentRubric(
         agent_rubrics={"attacker": attacker_rubric},
-        allow_missing=True,  # defender has no rubric → reward=0.0
         parser=injection_parser,
     )
 
