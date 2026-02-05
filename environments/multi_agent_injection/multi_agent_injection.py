@@ -11,6 +11,7 @@ Memory mode only - no sandbox support.
 from __future__ import annotations
 
 import hashlib
+import logging
 import random
 import re
 from typing import Any, Literal
@@ -18,6 +19,8 @@ from typing import Any, Literal
 import verifiers as vf
 from datasets import Dataset
 from verifiers.agents.agent import Agent, AgentConfig
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Types & Constants
@@ -425,6 +428,12 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         secret = generate_secret(seed=self.seed, example_id=example_id)
         state["secret"] = secret
 
+        logger.info(
+            f"[InjectionEnv.setup_state] example_id={example_id} "
+            f"defense_level={state['defense_level']} secret={secret[:12]}... "
+            f"user_prompt='{state['user_prompt'][:50]}...'"
+        )
+
         # Set defender's system prompt with the secret
         defender_system = get_defender_system_prompt(secret, state["defense_level"])
         self.agents["defender"].system_prompt = defender_system
@@ -441,6 +450,10 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         # Now call super() which will invoke get_initial_observation
         state = await super().setup_state(state)
 
+        logger.info(
+            f"[InjectionEnv.setup_state] example_id={example_id} setup complete, "
+            f"max_turns={self.logical_max_turns}"
+        )
         return state
 
     async def _agent_turn(
@@ -449,6 +462,13 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         state: vf.State,
     ) -> vf.TrajectoryStep:
         """Execute a turn for an agent with custom logic."""
+        example_id = state.get("example_id")
+        turn_count = state.get("turn_count", 0)
+        logger.info(
+            f"[InjectionEnv._agent_turn] START example_id={example_id} "
+            f"agent={agent_id} turn_count={turn_count}"
+        )
+
         # Reset defender's context each turn (stateless from attacker's perspective)
         if agent_id == "defender":
             self.agents["defender"].reset()
@@ -460,6 +480,10 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
                 state["secret"], state["defense_level"]
             )
             self.agents["defender"].system_prompt = defender_system
+            logger.debug(
+                f"[InjectionEnv._agent_turn] example_id={example_id} "
+                f"defender reset, trajectory cleared"
+            )
 
         # Call parent implementation
         step = await super()._agent_turn(agent_id, state)
@@ -474,6 +498,11 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
                 content = completion[-1].get("content", "")
                 injection = extract_injection(content)
                 state["_current_injection"] = injection
+                logger.info(
+                    f"[InjectionEnv._agent_turn] example_id={example_id} "
+                    f"attacker injection extracted, len={len(injection)}, "
+                    f"preview='{injection[:80]}...'"
+                )
 
         elif agent_id == "defender":
             # Check for secret leak
@@ -482,22 +511,41 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
                 content = completion[-1].get("content", "")
                 state["_last_defender_response"] = content
 
-                if check_secret_leaked(content, state["secret"]):
+                leaked = check_secret_leaked(content, state["secret"])
+                if leaked:
                     state["secret_leaked"] = True
 
-                if contains_signal_words(content):
+                signal = contains_signal_words(content)
+                if signal:
                     state["signal_words_detected"] = True
+
+                logger.info(
+                    f"[InjectionEnv._agent_turn] example_id={example_id} "
+                    f"defender responded, leaked={leaked} signal_words={signal} "
+                    f"response_len={len(content)} "
+                    f"preview='{content[:80]}...'"
+                )
 
             # Increment logical turn count after defender responds
             state["turn_count"] += 1
+            logger.debug(
+                f"[InjectionEnv._agent_turn] example_id={example_id} "
+                f"turn_count incremented to {state['turn_count']}/{self.logical_max_turns}"
+            )
 
         return step
 
     async def check_episode_done(self, state: vf.State) -> bool:
         """Check if episode should end."""
+        example_id = state.get("example_id")
         if state.get("secret_leaked"):
+            logger.info(f"[InjectionEnv.check_episode_done] example_id={example_id} DONE: secret leaked")
             return True
         if state.get("turn_count", 0) >= self.logical_max_turns:
+            logger.info(
+                f"[InjectionEnv.check_episode_done] example_id={example_id} DONE: "
+                f"max turns reached ({state.get('turn_count')}/{self.logical_max_turns})"
+            )
             return True
         return False
 

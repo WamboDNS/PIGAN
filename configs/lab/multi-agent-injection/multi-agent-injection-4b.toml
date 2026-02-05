@@ -45,5 +45,7 @@ env_worker_logs = true
 
 [orchestrator.log]
 env_worker_logs = true
+level = "debug"
+vf_level = "debug"
 
 [inference]
