@@ -1,16 +1,11 @@
 """
 Multi-Agent Text Reversal Environment.
 
-Two agents:
-- Agent A (reverser): Takes input text and reverses it
-- Agent B (de-reverser): Takes Agent A's output and reverses it back
-
-Both agents are trainable with independent LCS-based rewards.
+Two independent agents, both doing the same task: reverse text.
 """
 
 from __future__ import annotations
 
-import logging
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -18,43 +13,28 @@ import verifiers as vf
 from datasets import Dataset, load_dataset
 from verifiers.agents.agent import AgentConfig
 
-logger = logging.getLogger(__name__)
-
 
 SYSTEM_PROMPT = "Reverse the text character-by-character. Put your answer in <reversed_text> tags."
 
 
 def lcs_ratio(x: str, y: str) -> float:
-    """Return the longest common subsequence ratio of x and y."""
     return SequenceMatcher(None, x, y).ratio()
 
 
 class ReverseMultiAgentEnv(vf.MultiAgentEnv):
-    """
-    Multi-agent environment for text reversal training.
 
-    Two agents:
-    - reverser: Takes original text, outputs reversal
-    - de_reverser: Takes reverser's output, outputs its reversal
-    """
-
-    def __init__(
-        self,
-        dataset: Dataset,
-        rubric: vf.Rubric,
-        **kwargs: Any,
-    ):
+    def __init__(self, dataset: Dataset, rubric: vf.Rubric, **kwargs: Any):
         self._parser = vf.XMLParser(["reversed_text"], answer_field="reversed_text")
 
         agents = {
-            "reverser": AgentConfig(
-                agent_id="reverser",
+            "agent_a": AgentConfig(
+                agent_id="agent_a",
                 system_prompt=SYSTEM_PROMPT,
                 trainable=True,
                 lora_id=0,
             ),
-            "de_reverser": AgentConfig(
-                agent_id="de_reverser",
+            "agent_b": AgentConfig(
+                agent_id="agent_b",
                 system_prompt=SYSTEM_PROMPT,
                 trainable=True,
                 lora_id=0,
@@ -73,57 +53,17 @@ class ReverseMultiAgentEnv(vf.MultiAgentEnv):
 
     async def get_active_agents(self, state: vf.State) -> list[str]:
         current_turn = state.get("current_turn", 0)
-        return ["reverser"] if current_turn == 0 else ["de_reverser"]
+        return ["agent_a"] if current_turn == 0 else ["agent_b"]
 
     async def get_initial_observation(self, agent_id: str, state: vf.State) -> str | None:
-        if agent_id == "reverser":
-            return state.get("original_text", "")
-        return None
-
-    async def get_agent_observation(
-        self, agent_id: str, response: vf.Messages, state: vf.State
-    ) -> str | None:
-        if state.get("_last_agent") == "reverser" and agent_id == "de_reverser":
-            return state.get("_reverser_parsed", "")
-        return None
+        # Both agents get the same input
+        return state.get("question", "")
 
     async def setup_state(self, state: vf.State) -> vf.State:
-        state["original_text"] = state.get("question", "")
-        state["_reverser_parsed"] = ""
-        state["_last_agent"] = None
         return await super().setup_state(state)
-
-    async def _agent_turn(self, agent_id: str, state: vf.State) -> vf.TrajectoryStep:
-        step = await super()._agent_turn(agent_id, state)
-        state["_last_agent"] = agent_id
-
-        completion = step.get("completion", [])
-        if completion and agent_id == "reverser":
-            content = (completion[-1].get("content", "") or "").strip()
-            state["_reverser_parsed"] = self._parser.parse_answer(content) or ""
-
-        return step
 
     async def check_episode_done(self, state: vf.State) -> bool:
         return state.get("current_turn", 0) >= 2
-
-
-def create_reward_func(parser: vf.XMLParser, is_de_reverser: bool = False):
-    """Create reward function matching reverse.py pattern exactly."""
-
-    def lcs_reward_func(completion, answer, state, **kwargs) -> float:
-        if is_de_reverser:
-            # de_reverser's answer is reverser's output reversed
-            reverser_output = state.get("_reverser_parsed", "")
-            if not reverser_output:
-                # Reverser failed to produce valid output, can't evaluate de_reverser
-                return 0.0
-            answer = reverser_output[::-1]
-
-        response = parser.parse_answer(completion) or ""
-        return lcs_ratio(response, answer)
-
-    return lcs_reward_func
 
 
 def load_environment(
@@ -143,25 +83,23 @@ def load_environment(
 
     parser = vf.XMLParser(["reversed_text"], answer_field="reversed_text")
 
-    reverser_rubric = vf.Rubric(
-        funcs=[create_reward_func(parser, is_de_reverser=False)],
-        weights=[1.0],
-    )
+    # Same reward function as reverse.py
+    def lcs_reward_func(completion, answer, **kwargs) -> float:
+        response = parser.parse_answer(completion) or ""
+        return lcs_ratio(response, answer)
 
-    de_reverser_rubric = vf.Rubric(
-        funcs=[create_reward_func(parser, is_de_reverser=True)],
-        weights=[1.0],
-    )
+    rubric = vf.Rubric(funcs=[lcs_reward_func], weights=[1.0])
 
-    rubric = vf.MultiAgentRubric(
+    # Both agents use the same rubric
+    multi_rubric = vf.MultiAgentRubric(
         agent_rubrics={
-            "reverser": reverser_rubric,
-            "de_reverser": de_reverser_rubric,
+            "agent_a": rubric,
+            "agent_b": rubric,
         }
     )
 
     return ReverseMultiAgentEnv(
         dataset=dataset,
-        rubric=rubric,
+        rubric=multi_rubric,
         **kwargs,
     )
