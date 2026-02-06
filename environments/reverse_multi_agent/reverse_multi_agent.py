@@ -111,7 +111,8 @@ class ReverseMultiAgentEnv(vf.MultiAgentEnv):
         rubric: vf.Rubric,
         **kwargs: Any,
     ):
-        # Create agent configs - both trainable with separate LoRA adapters
+        # Create agent configs - both trainable with shared LoRA adapter
+        # Both agents share lora_id=0 since they perform the same task (text reversal)
         agents = {
             "reverser": AgentConfig(
                 agent_id="reverser",
@@ -123,7 +124,7 @@ class ReverseMultiAgentEnv(vf.MultiAgentEnv):
                 agent_id="de_reverser",
                 system_prompt=DE_REVERSER_SYSTEM_PROMPT,
                 trainable=True,
-                lora_id=1,
+                lora_id=0,  # Same adapter as reverser
             ),
         }
 
