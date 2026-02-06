@@ -34,7 +34,7 @@ max_tokens = 128
 
 [[orchestrator.env]]
 id = "wambosec/reverse-multi-agent"
-name = "reverse-multi-agent"
+name = "reverse-multi-agent-"
 
 [ckpt]
 

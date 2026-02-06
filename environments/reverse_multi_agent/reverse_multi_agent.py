@@ -114,7 +114,11 @@ def create_reward_func(parser: vf.XMLParser, is_de_reverser: bool = False):
     def lcs_reward_func(completion, answer, state, **kwargs) -> float:
         if is_de_reverser:
             # de_reverser's answer is reverser's output reversed
-            answer = state.get("_reverser_parsed", "")[::-1]
+            reverser_output = state.get("_reverser_parsed", "")
+            if not reverser_output:
+                # Reverser failed to produce valid output, can't evaluate de_reverser
+                return 0.0
+            answer = reverser_output[::-1]
 
         response = parser.parse_answer(completion) or ""
         return lcs_ratio(response, answer)
