@@ -12,4 +12,4 @@ max_tokens = 16384
 [[env]]
 id = "wambosec/trainer-ablation"
 # For fully deterministic training, add target_temperature = 0.0 and target_seed = 187
-args = { defense_levels = ["hard"], max_turns = 4, seed = 187 }
+args = { defense_levels = ["hard"], max_turns = 6, seed = 187 }
