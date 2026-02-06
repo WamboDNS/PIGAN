@@ -1,0 +1,24 @@
+[project]
+name = "reverse-multi-agent"
+description = "Multi-agent text reversal with trainable reverser and de-reverser agents"
+tags = ["text", "multi-agent", "train", "eval"]
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "verifiers @ git+https://github.com/WamboDNS/verifiers.git@feature/multi-agent",
+    "datasets",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build]
+include = ["reverse_multi_agent.py", "pyproject.toml"]
+
+[tool.verifiers.eval]
+num_examples = 10
+rollouts_per_example = 3
