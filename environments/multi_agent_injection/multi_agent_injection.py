@@ -378,13 +378,23 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
         - When defender acts: Check for leak, prepare attacker's next input
         """
         acting_agent = state.get("_last_acting_agent")
+        example_id = state.get("example_id")
+        logger.info(
+            f"[InjectionEnv.get_agent_observation] example_id={example_id} "
+            f"agent_id={agent_id} acting_agent={acting_agent}"
+        )
 
         if acting_agent == "attacker" and agent_id == "defender":
             # Defender observes the injection (disguised as user message)
             injection = state.get("_current_injection", "")
             user_prompt = state["user_prompt"]
             # The defender sees the injection mixed with a benign user prompt
-            return f"{user_prompt}\n\n{injection}"
+            obs = f"{user_prompt}\n\n{injection}"
+            logger.info(
+                f"[InjectionEnv.get_agent_observation] example_id={example_id} "
+                f"returning defender observation, len={len(obs)}, preview='{obs[:100]}...'"
+            )
+            return obs
 
         elif acting_agent == "defender" and agent_id == "attacker":
             # Attacker observes defender's response
@@ -461,6 +471,16 @@ class InjectionTrainerMultiEnv(vf.MultiAgentEnv):
             f"[InjectionEnv._agent_turn] START example_id={example_id} "
             f"agent={agent_id} turn_count={turn_count}"
         )
+
+        # Debug: log defender's context before acting
+        if agent_id == "defender":
+            defender = state["_agent_instances"]["defender"]
+            ctx_messages = defender._ctx._messages if hasattr(defender._ctx, '_messages') else []
+            logger.info(
+                f"[InjectionEnv._agent_turn] example_id={example_id} "
+                f"defender context before act: {len(ctx_messages)} messages, "
+                f"roles={[m.get('role') for m in ctx_messages]}"
+            )
 
         # Call parent implementation
         step = await super()._agent_turn(agent_id, state)
