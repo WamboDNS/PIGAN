@@ -1,0 +1,15 @@
+model = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+max_steps = 100
+batch_size = 24
+rollouts_per_example = 8
+
+[sampling]
+max_tokens = 16384
+# For deterministic training, uncomment the following:
+# temperature = 0.0  # Deterministic Adv model sampling
+# seed = 187         # Adv model's vLLM seed
+
+[[env]]
+id = "wambosec/trainer-ablation"
+# For fully deterministic training, add target_temperature = 0.0 and target_seed = 187
+args = { defense_levels = ["hard"], max_turns = 4, seed = 187 }
