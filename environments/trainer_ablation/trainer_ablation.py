@@ -8,7 +8,7 @@ to understand the impact of prompt complexity on training.
 Architecture:
 - Adv and Target are the SAME model with SEPARATE conversation histories
 - Adv's history is managed by verifiers (multi-turn)
-- Target's history is built fresh each turn (stateless from Adv's perspective)
+- Target's history persists across turns and is included in each call
 
 Attack mode:
 - Memory only: Secret is embedded in target's system prompt
@@ -273,13 +273,8 @@ class TargetRunner:
         self.temperature = temperature
         self.seed = seed
 
-    async def run(self, system_prompt: str, user_message: str) -> TargetResponse:
-        """Run target LLM with injected message."""
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ]
-
+    async def run_messages(self, messages: list[dict[str, str]]) -> TargetResponse:
+        """Run target LLM with provided message history."""
         response = await self._call_api(messages)
         if not response.choices:
             raise vf.Error(f"API returned no choices: {response}")
@@ -380,7 +375,7 @@ class TrainerAblationEnv(vf.MultiTurnEnv):
 
     Adv (attacker) and Target (defender) are the SAME model with separate histories:
     - Adv history: Managed by verifiers, persists across turns
-    - Target history: Fresh each turn, completely independent
+    - Target history: Persists across turns and sees the full conversation transcript
 
     The model attacks itself without knowing it.
     """
@@ -466,6 +461,17 @@ class TrainerAblationEnv(vf.MultiTurnEnv):
                         f'"{state["topic"]}"',
                     )
                     break
+        # Initialize the target's conversation history. The target sees a normal assistant chat:
+        # system prompt + all prior user/assistant turns.
+        state["target_messages"] = [
+            {
+                "role": "system",
+                "content": get_defender_system_prompt(
+                    secret=state["secret"],
+                    defense_level=state["defense_level"],
+                ),
+            }
+        ]
         # Adv should output plain text (no tool calls).
         state["oai_tools"] = None
         return await super().setup_state(state)
@@ -493,10 +499,12 @@ class TrainerAblationEnv(vf.MultiTurnEnv):
         """Run target LLM with the injection."""
         # The attacker generates the entire user message (including any benign pretext).
         injected_message = injection
-        system_prompt = get_defender_system_prompt(
-            secret=state["secret"],
-            defense_level=state["defense_level"],
-        )
+
+        target_messages = state.get("target_messages")
+        if not isinstance(target_messages, list) or not target_messages:
+            raise RuntimeError("Missing target_messages in state; setup_state was not run?")
+
+        target_messages.append({"role": "user", "content": injected_message})
 
         runner = TargetRunner(
             client=state["client"],
@@ -504,7 +512,9 @@ class TrainerAblationEnv(vf.MultiTurnEnv):
             temperature=self.target_temperature,
             seed=self.target_seed,
         )
-        return await runner.run(system_prompt, injected_message)
+        result = await runner.run_messages(target_messages)
+        target_messages.append({"role": "assistant", "content": result.content})
+        return result
 
     def _update_state_from_result(self, state: vf.State, result: TargetResponse):
         """Update state based on target's response."""
